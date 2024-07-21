@@ -1,0 +1,123 @@
+{
+    "Comment": "A description of my state machine",
+    "StartAt": "crawl_and_load_to_raw",
+    "States": {
+      "crawl_and_load_to_raw": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "arn:aws:lambda:ap-southeast-1:437259461010:function:lbd-func-minhpt1_crawler:$LATEST"
+        },
+        "ResultPath": "$.output_crawl_and_load_to_raw",
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException",
+              "Lambda.TooManyRequestsException"
+            ],
+            "IntervalSeconds": 1,
+            "MaxAttempts": 3,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "Choice"
+      },
+      "Choice": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$output_crawl_and_load_to_raw.Payload.status",
+            "StringEquals": "Fail",
+            "Next": "Fail"
+          },
+          {
+            "Variable": "$output_crawl_and_load_to_raw.Payload.status",
+            "StringEquals": "SUCCESS",
+            "Next": "raw_to_golden"
+          }
+        ]
+      },
+      "Fail": {
+        "Type": "Fail"
+      },
+      "raw_to_golden": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::glue:startJobRun",
+        "Parameters": {
+          "JobName": "ai4e-ap-southeast-1-dev-glue-jb-minhpt_transform"
+        },
+        "Next": "create_dim"
+      },
+      "create_dim": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::glue:startJobRun",
+        "Parameters": {
+          "JobName": "ai4e-ap-southeast-1-dev-glue-jb-minhpt_dim"
+        },
+        "Next": "GetCrawlerCreateDimState"
+      },
+      "GetCrawlerCreateDimState": {
+        "Type": "Task",
+        "Parameters": {
+          "Name": "ai4e-ap-southeast-1-dev-glue-jb-minhpt_dim"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+        "Next": "IsCreateDimSuccess?"
+      },
+      "IsCreateDimSuccess?": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$output_create_dim.Payload.status",
+            "StringEquals": "Fail",
+            "Next": "Fail"
+          },
+          {
+            "Variable": "$output_create_dim.Payload.status",
+            "StringEquals": "SUCCESS",
+            "Next": "create_fact"
+          }
+        ]
+      },
+      "create_fact": {
+        "Type": "Task",
+        "Parameters": {
+          "Name": "ai4e-ap-southeast-1-dev-glue-cwl-golden_zone-minhpt1-table_demo"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+        "ResultPath": "$.output_start_crawler",
+        "Next": "Wait"
+      },
+      "Wait": {
+        "Type": "Wait",
+        "Seconds": 5,
+        "Next": "GetCrawlerCreateFactState"
+      },
+      "GetCrawlerCreateFactState": {
+        "Type": "Task",
+        "Parameters": {
+          "Name": "ai4e-ap-southeast-1-dev-glue-cwl-golden_zone-minhpt1-table_demo"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+        "Next": "check_crawl_success"
+      },
+      "check_crawl_success": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.output_start_crawler.Crawler.State",
+            "StringEquals": "READY",
+            "Next": "pass_state"
+          }
+        ],
+        "Default": "Wait"
+      },
+      "pass_state": {
+        "Type": "Succeed"
+      }
+    }
+  }
