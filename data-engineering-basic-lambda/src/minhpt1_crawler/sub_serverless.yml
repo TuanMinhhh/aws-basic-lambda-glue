@@ -1,0 +1,9 @@
+minhpt1_crawler:
+  name: ${self:custom.prefix}-minhpt1_crawler
+  handler: src.minhpt1_crawler.minhpt1_crawler.lambda_handler
+  layers:
+    - Ref: DefaultLambdaLayer
+    - Ref: PythonRequirementsLambdaLayer
+    - Ref: PandasNumpyLambdaLayer
+  environment:
+    NAME:  ${env:NAMESPACE}

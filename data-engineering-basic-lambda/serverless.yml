@@ -1,0 +1,58 @@
+service: ai4e-lambda-c03
+
+frameworkVersion: "3"
+
+package:
+  exclude:
+    - node_modules/**
+    - README.md
+    - package.json
+    - package-lock.json
+    - buildspec.yaml
+    - bitbucket-pipelines.yml
+    - ./src/lambda_layers/**
+
+plugins:
+  - serverless-python-requirements
+  - serverless-deployment-bucket
+
+custom:
+  basePath: src
+  region: ap-southeast-1
+  prefix: lbd-func
+  pythonRequirements:
+    layer: true
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: ap-southeast-1
+  memorySize: 512
+  timeout: 300
+  deploymentBucket:
+    name: ${env:LAMBDA_DEPLOYMENT_BUCKET_NAME}
+    maxPreviousDeploymentArtifacts: 10
+    blockPublicAccess: true
+    skipPolicySetup: true
+    versioning: true
+    serverSideEncryption: AES256
+layers:
+  default:
+    package:
+      artifact: ./src/lambda_layers/default_layer.zip
+    name: ai4e_default_lambda_layer
+    description: Contains requests, bs4, lxml, psycopg2-binary
+    compatibleRuntimes:
+      - python3.11
+
+  pandasNumpy:
+    package:
+      artifact: ./src/lambda_layers/pandas_numpy_layer.zip
+    name: ai4e_pandas_numpy_lambda_layer
+    description: Contains pandas_numpy
+    compatibleRuntimes:
+      - python3.11
+
+functions:
+  - ${file(./src/minhpt1_crawler/sub_serverless.yml)}
+

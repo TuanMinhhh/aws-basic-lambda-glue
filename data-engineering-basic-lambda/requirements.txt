@@ -1,0 +1,3 @@
+faker
+sqlalchemy
+s3fs
